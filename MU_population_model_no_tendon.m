@@ -1,5 +1,5 @@
 %==========================================================================
-% MU_population_model.m
+% MU_population_model_no_tendon.m
 % Author: Akira Nagamori
 % Last update: 3/1/20
 % Model descriptions:
@@ -14,17 +14,10 @@
 %   unit forces and tendon force (see l.242)
 %==========================================================================
 
-function [output] = MU_population_model(Fs,time,synaptic_drive,modelParameter,figOpt)
+function [output] = MU_population_model_no_tendon(Fs,time,synaptic_drive,modelParameter,figOpt)
 %% Muscle architectural parameters
-L0 = modelParameter.optimalLength; % optimal muscle length [cm]
-F0 = modelParameter.F0; % maximal force
-
-L0T = modelParameter.L0T; % optima tendon length [cm]
-alpha = modelParameter.pennationAngle; % pennation angle [radians]
-Lmt =modelParameter.Lmt; % intial musculotendon length [cm]
-L_ce = modelParameter.L_ce; % normalized muscle length [L0]
-L_se = modelParameter.L_se; % normalized tendon length [L0T]
-Lmax = modelParameter.Lmax; % maximal muscle length [cm]
+Lce = 1;
+Vce = 0;
 
 %% Motor unit architecture
 N_MU = modelParameter.N_MU; % number of motor units
@@ -53,18 +46,12 @@ gamma = parameter_Matrix(:,15);
 
 % parameters for Eq. 8
 cv_MU = modelParameter.CV_MU; % coefficient of variation for interspike intervals
-Z = randn(N_MU,length(time));
-Z(Z>3.9) = 3.9;
-Z(Z<-3.9) = -3.9;
 
-%% Parameter initilization
-DR_temp = zeros(N_MU,1);
-DR_mat = zeros(N_MU,length(time));
-
+%% Initilization
 spike_time = zeros(N_MU,1);
 spike_train = zeros(N_MU,length(time));
 force = zeros(N_MU,length(time));
-F_se = zeros(1,length(time));
+Force = zeros(1,length(time));
 
 R = zeros(N_MU,length(time));
 c = zeros(N_MU,1);
@@ -75,7 +62,6 @@ cf_mat = zeros(N_MU,length(time));
 A_tilde_mat = zeros(N_MU,length(time));
 A_mat = zeros(N_MU,length(time));
 
-a_s = ones(N_MU,1)*0.96;
 S_i = zeros(N_MU,1);
 Y_i = zeros(N_MU,1);
 S_mat = zeros(N_MU,length(time));
@@ -84,16 +70,12 @@ Y_mat = zeros(N_MU,length(time));
 FL = zeros(N_MU,1);
 FV = zeros(N_MU,1);
 
-MuscleVelocity = zeros(1,length(time));
-MuscleLength = zeros(1,length(time));
-MuscleLength(1) = L_ce*L0/100;
-
-V_ce = 0;
-
+DR_temp = zeros(N_MU,1);
+DR_mat = zeros(N_MU,length(time));
 %% Simulation
 rng('shuffle')
-h = 1/Fs; % time step
 for t = 1:length(time)
+    
     if t > 1
         %% Calculate discharge rate (Eq.2-7)
         U_eff = synaptic_drive(t); % effective synaptic input 
@@ -115,23 +97,26 @@ for t = 1:length(time)
         S_i = sag_function(S_i,f_eff,a_s,Fs);
         S_i(1:index_slow) = 1;
         S_mat(:,t) = S_i;
-        Y_i = yield_function(Y_i,V_ce,Fs);
+        Y_i = yield_function(Y_i,Vce,Fs);
         Y_i(index_slow+1:end) = 1;
         Y_mat(:,t) = Y_i;
         
         %% Convert activation into spike trains
         index_1 = i_MU(DR_MU >= MDR & DR_mat(:,t-1) == 0);
-        index_2 = i_MU(DR_MU >= MDR & spike_time == t);
+        index_2 = i_MU(DR_MU >= MDR & spike_time ==t);
         index = [index_1;index_2];
         
-        for j = 1:length(index) % loop through motor units whose firing rate is greater than minimum discharge rate
+        for j = 1:length(index) % loop through motor units whose firing rate is greater than minimum firing rate defined by the user
             n = index(j);
             spike_train_temp = zeros(1,length(t));
             if ~any(spike_train(n,:)) % when the motor unit fires at the first time
                 spike_train(n,t) = 1; % add a spike to the vector
                 spike_train_temp(t) = 1;
                 mu = 1/DR_MU(n); % interspike interval
-                spike_time_temp = (mu + mu*cv_MU*Z(n,t))*Fs; % compute next spike time
+                Z = randn(1);
+                Z(Z>3.9) = 3.9;
+                Z(Z<-3.9) = -3.9;
+                spike_time_temp = (mu + mu*cv_MU*Z)*Fs;  % compute next spike time
                 if spike_time_temp <= 0.002*Fs
                     spike_time_temp = 0.002*Fs;
                 end
@@ -139,14 +124,16 @@ for t = 1:length(time)
                 
                 % convert spike train into R in Eq. 12
                 temp = conv(spike_train_temp,R_temp(n,:)*(1+2*A(n)^gamma(n)));
-                R(n,:) = R(n,:) + temp(1:length(time)); 
+                R(n,:) = R(n,:) + temp(1:length(time));
             else % when the motor unit have already fired at least once
                 if spike_time(n) == t % when the motor unit fires
                     spike_train(n,t) = 1;
-                    spike_train_temp(t) = 1;
-                    % update mean firing rate of the motor unit given the current value of input
+                    spike_train_temp(t) = 1;    
                     mu = 1/DR_MU(n); % interspike interval
-                    spike_time_temp = (mu + mu*cv_MU*Z(n,t))*Fs; % compute next spike time
+                    Z = randn(1);
+                    Z(Z>3.9) = 3.9;
+                    Z(Z<-3.9) = -3.9;
+                    spike_time_temp = (mu + mu*cv_MU*Z)*Fs; % compute next spike time
                     if spike_time_temp <= 0.002*Fs
                         spike_time_temp = 0.002*Fs;
                     end
@@ -160,7 +147,10 @@ for t = 1:length(time)
                     spike_train_temp(t) = 1;
                     spike_time(n) = t;
                     mu = 1/DR_MU(n); % interspike interval
-                    spike_time_temp = (mu + mu*cv_MU*Z(n,t))*Fs; % compute next spike time
+                    Z = randn(1);
+                    Z(Z>3.9) = 3.9;
+                    Z(Z<-3.9) = -3.9;
+                    spike_time_temp = (mu + mu*cv_MU*Z)*Fs; % compute next spike time
                     if spike_time_temp <= 0.002*Fs
                         spike_time_temp = 0.002*Fs;
                     end
@@ -172,56 +162,55 @@ for t = 1:length(time)
                 end
             end
         end
+        
+        %% Convert spikes into activation (Eq. 10-19)
+        [c,cf,A_tilde,A] = spike2activation(R(:,t),c,cf,A,parameter_Matrix,Lce,S_i,Y_i,Fs);
+        
+        c_mat(:,t) = c;
+        cf_mat(:,t) = cf;
+        A_tilde_mat(:,t) = A_tilde;
+        A_mat(:,t) = A;
+        
+        %% Force-length and force-velocity
+        FL(1:index_slow) = FL_slow_function(Lce);
+        FL(index_slow+1:end) = FL_fast_function(Lce);
+        
+        if Vce > 0
+            FV(1:index_slow) = FVecc_slow_function(Lce,Vce);
+            FV(index_slow+1:end) = FVecc_fast_function(Lce,Vce);
+        else
+            FV(1:index_slow) = FVcon_slow_function(Lce,Vce);
+            FV(index_slow+1:end) = FVcon_fast_function(Lce,Vce);
+        end
+        %% Muscle force output
+        f_i = A.*PTi.*FL.*FV;
+        force(:,t) = f_i; % motor unit force
+        
+        Force(t) = sum(f_i); % muscle force
     end
-    %% Convert spikes into activation (Eq. 10-19)
-    [c,cf,A_tilde,A] = spike2activation(R(:,t),c,cf,A,parameter_Matrix,L_ce,S_i,Y_i,Fs);
-    
-    c_mat(:,t) = c;
-    cf_mat(:,t) = cf;
-    A_tilde_mat(:,t) = A_tilde;
-    A_mat(:,t) = A;
-    
-    %% Muscle contraction dynamics (Eq. 21-22)
-    [force(:,t),F_se(t)] = contraction_dynamics_v2(A,L_se,L_ce,V_ce,FL,FV,index_slow,Lmax,PTi,F0);
-    
-    k_0_de = h*MuscleVelocity(t);
-    l_0_de = h*contraction_dynamics(A,L_se,L_ce,V_ce,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    k_1_de = h*(MuscleVelocity(t)+l_0_de/2);
-    l_1_de = h*contraction_dynamics(A,(Lmt - (L_ce+k_0_de/L0)*L0*cos(alpha))/L0T,L_ce+k_0_de/L0,V_ce+l_0_de/L0,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    k_2_de = h*(MuscleVelocity(t)+l_1_de/2);
-    l_2_de = h*contraction_dynamics(A,(Lmt - (L_ce+k_1_de/L0)*L0*cos(alpha))/L0T,L_ce+k_1_de/L0,V_ce+l_1_de/L0,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    k_3_de = h*(MuscleVelocity(t)+l_2_de);
-    l_3_de = h*contraction_dynamics(A,(Lmt - (L_ce+k_2_de/L0)*L0*cos(alpha))/L0T,L_ce+k_2_de/L0,V_ce+l_2_de/L0,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    MuscleLength(t+1) = MuscleLength(t) + 1/6*(k_0_de+2*k_1_de+2*k_2_de+k_3_de);
-    MuscleVelocity(t+1) = MuscleVelocity(t) + 1/6*(l_0_de+2*l_1_de+2*l_2_de+l_3_de);
-    
-    % normalize each variable to optimal muscle length or tendon length
-    V_ce = MuscleVelocity(t+1)/(L0/100);
-    L_ce = MuscleLength(t+1)/(L0/100);
-    L_se = (Lmt - L_ce*L0*cos(alpha))/L0T;
 end
 
 %% Plotting figures
 if figOpt == 1
     figure(1)
-    plot(time,F_se)
+    plot(time,Force)
     xlabel('Time (s)')
     ylabel('Force (N)')
     hold on
 end
 
 %% Save data in the data structure, output
-output.spike_train = spike_train; % spike trains
-output.ForceTendon = F_se; % tendon force
+output.Force = Force; % muscle force
 output.force = force; % individual motor unit forces
+output.spike_train = spike_train; % spike trains
 
-    %% Convert spike trian into activation
+%% Convert spike trian into activation
     function [c,cf,A_tilde,A] = spike2activation(R,c,cf,A,parameter_Matrix,Lce,S_i,Y_i,Fs)
         %% Stage 1: calcium kinetics (Eq.10-11)
         % parameters
         S = parameter_Matrix(:,1); 
-        C = parameter_Matrix(:,2);
-        k_1 = parameter_Matrix(:,3); 
+        C = parameter_Matrix(:,2); 
+        k_1 = parameter_Matrix(:,3);
         k_2 = parameter_Matrix(:,4); 
         k_3 = parameter_Matrix(:,5)*Lce + parameter_Matrix(:,6); 
         k_4 = parameter_Matrix(:,7)*Lce + parameter_Matrix(:,8); 
@@ -248,7 +237,7 @@ output.force = force; % individual motor unit forces
         
     end
 
-    %% Sag
+    %% Sag  (Eq.16-17)
     function [S] = sag_function(S,f_eff,a_s,Fs)
         
         a_s(f_eff<0.1) = 20;
@@ -259,7 +248,7 @@ output.force = force; % individual motor unit forces
         
     end
 
-    %% Yield
+    %% Yield (Eq.18)
     function [Y] = yield_function(Y,V,Fs)
         c_y = 0.35;
         V_y = 0.1;
@@ -269,7 +258,7 @@ output.force = force; % individual motor unit forces
         
     end
 
-    %% Force-length relationship for slow twitch
+    %% Force-length relationship for slow twitch (Eq.24)
     function FL = FL_slow_function(L)
         beta = 2.3;
         omega = 1.12;
@@ -278,9 +267,9 @@ output.force = force; % individual motor unit forces
         FL = exp(-abs((L^beta - 1)/omega)^rho);
     end
 
-    %% Force-length relationship for fast twitch
+    %% Force-length relationship for fast twitch (Eq.24)
     function FL = FL_fast_function(L)
-        
+     
         beta = 1.55;
         omega = 0.75;
         rho = 2.12;
@@ -288,13 +277,9 @@ output.force = force; % individual motor unit forces
         FL = exp(-abs((L^beta - 1)/omega)^rho);
     end
 
-%% Concentric force-velocity relationship for slow twitch
+    %% Concentric force-velocity relationship for slow twitch (Eq.25)
     function FVcon = FVcon_slow_function(L,V)
-        %---------------------------
-        % concentric force velocity (F-V) relationship for slow-twitch fiber
-        % input: normalized muscle length and velocity
-        % output: F-V factor (0-1)
-        %---------------------------
+       
         Vmax = -7.88;
         cv0 = 5.88;
         cv1 = 0;
@@ -302,13 +287,9 @@ output.force = force; % individual motor unit forces
         FVcon = (Vmax - V)/(Vmax + (cv0 + cv1*L)*V);
     end
 
-%% Concentric force-velocity relationship for fast twitch
+    %% Concentric force-velocity relationship for fast twitch (Eq.25)
     function FVcon = FVcon_fast_function(L,V)
-        %---------------------------
-        % concentric force velocity (F-V) relationship for fast-twitch fiber
-        % input: normalized muscle length and velocity
-        % output: F-V factor (0-1)
-        %---------------------------
+       
         Vmax = -9.15;
         cv0 = -5.7;
         cv1 = 9.18;
@@ -316,13 +297,9 @@ output.force = force; % individual motor unit forces
         FVcon = (Vmax - V)/(Vmax + (cv0 + cv1*L)*V);
     end
 
-%% Eccentric force-velocity relationship for slow twitch
+    %% Eccentric force-velocity relationship for slow twitch (Eq.25)
     function FVecc = FVecc_slow_function(L,V)
-        %---------------------------
-        % eccentric force velocity (F-V) relationship for slow-twitch fiber
-        % input: normalized muscle length and velocity
-        % output: F-V factor (0-1)
-        %---------------------------
+        
         av0 = -4.7;
         av1 = 8.41;
         av2 = -5.34;
@@ -330,130 +307,13 @@ output.force = force; % individual motor unit forces
         FVecc = (bv - (av0 + av1*L + av2*L^2)*V)/(bv+V);
     end
 
-%% Eccentric force-velocity relationship for slow twitch
+    %% Eccentric force-velocity relationship for slow twitch  (Eq.25)
     function FVecc = FVecc_fast_function(L,V)
-        %---------------------------
-        % eccentric force velocity (F-V) relationship for fast-twitch fiber
-        % input: normalized muscle length and velocity
-        % output: F-V factor (0-1)
-        %---------------------------
+       
         av0 = -1.53;
         av1 = 0;
         av2 = 0;
         bv = 0.69;
         FVecc = (bv - (av0 + av1*L + av2*L^2)*V)/(bv+V);
-    end
-
-%% Force-length relationship for passive element 1
-    function Fpe1 = Fpe1_function(L,V)
-        %---------------------------
-        % passive element 1
-        % input: normalized muscle length
-        % output: passive element force (0-1)
-        %---------------------------
-        c1_pe1 = 23;
-        k1_pe1 = 0.046;
-        Lr1_pe1 = 1.17;
-        eta = 0.01;
-        
-        Fpe1 = c1_pe1 * k1_pe1 * log(exp((L - Lr1_pe1)/k1_pe1)+1) + eta*V;
-        
-    end
-
-%% Force-length relationship for passive element 2
-    function Fpe2 = Fpe2_function(L)
-        %---------------------------
-        % passive element 2
-        % input: normalized muscle length
-        % output: passive element force (0-1)
-        %---------------------------
-        c2_pe2 = -0.02;
-        k2_pe2 = -21;
-        Lr2_pe2 = 0.70;
-        
-        Fpe2 = c2_pe2*exp((k2_pe2*(L-Lr2_pe2))-1);
-        
-    end
-
-%% Force-length relationship for series-elastic element
-    function Fse = Fse_function(LT)
-        %---------------------------
-        % series elastic element (tendon)
-        % input: tendon length
-        % output: tendon force (0-1)
-        %---------------------------
-        cT_se = 27.8; %27.8
-        kT_se = 0.0047;
-        LrT_se = 0.964;
-        
-        Fse = cT_se * kT_se * log(exp((LT - LrT_se)/kT_se)+1);
-        
-    end
-
-    function ddx = contraction_dynamics(A,L_s,L_m,L_m_dot,FL_vec,FV_vec,modelParameter,index_slow,Lmax,PT,F0)
-        %% Force-length and force-velocity
-        FL_vec(1:index_slow) = FL_slow_function(L_m);
-        FL_vec(index_slow+1:end) = FL_fast_function(L_m);
-        
-        if L_m_dot > 0
-            FV_vec(1:index_slow) = FVecc_slow_function(L_m,L_m_dot);
-            FV_vec(index_slow+1:end) = FVecc_fast_function(L_m,L_m_dot);
-        else
-            FV_vec(1:index_slow) = FVcon_slow_function(L_m,L_m_dot);
-            FV_vec(index_slow+1:end) = FVcon_fast_function(L_m,L_m_dot);
-        end
-        
-        %% Passive element 1
-        F_pe1 = Fpe1_function(L_m/Lmax,L_m_dot);
-        
-        %% Passive element 2
-        F_pe2 = Fpe2_function(L_m);
-        if F_pe2 > 0
-            F_pe2 = 0;
-        end
-        
-        f_i = A.*PT.*(FL_vec.*FV_vec+F_pe2);
-        
-        F_m_temp = sum(f_i);
-        F_m = F_m_temp + F_pe1*F0;
-        
-        F_t = Fse_function(L_s) * F0;
-        
-        M = modelParameter.mass;
-        rho = modelParameter.pennationAngle;
-        
-        ddx = (F_t*cos(rho) - F_m*(cos(rho)).^2)/(M) ...
-            + (L_m_dot).^2*tan(rho).^2/(L_m);
-    end
-
-    function [f_i,F_t] = contraction_dynamics_v2(A,L_s,L_m,L_m_dot,FL_vec,FV_vec,index_slow,Lmax,PT,F0)
-        %% Force-length and force-velocity
-        FL_vec(1:index_slow) = FL_slow_function(L_m);
-        FL_vec(index_slow+1:end) = FL_fast_function(L_m);
-        
-        if L_m_dot > 0
-            FV_vec(1:index_slow) = FVecc_slow_function(L_m,L_m_dot);
-            FV_vec(index_slow+1:end) = FVecc_fast_function(L_m,L_m_dot);
-        else
-            FV_vec(1:index_slow) = FVcon_slow_function(L_m,L_m_dot);
-            FV_vec(index_slow+1:end) = FVcon_fast_function(L_m,L_m_dot);
-        end
-        
-        %% Passive element 1
-        F_pe1 = Fpe1_function(L_m/Lmax,L_m_dot);
-        
-        %% Passive element 2
-        F_pe2 = Fpe2_function(L_m);
-        if F_pe2 > 0
-            F_pe2 = 0;
-        end
-        
-        f_i = A.*PT.*(FL_vec.*FV_vec+F_pe2);
-        
-        F_m_temp = sum(f_i);
-        F_m = F_m_temp + F_pe1*F0;
-        
-        F_t = Fse_function(L_s) * F0;
-        
     end
 end
