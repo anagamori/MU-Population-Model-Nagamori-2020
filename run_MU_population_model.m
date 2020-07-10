@@ -1,7 +1,7 @@
 %==========================================================================
 % run_MU_population_model.m
 % Author: Akira Nagamori
-% Last update: 3/1/19
+% Last update: 7/10/2020
 % Descriptions:
 %   Run simulations of a motor unit population model
 %==========================================================================
