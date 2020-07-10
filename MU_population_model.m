@@ -95,8 +95,7 @@ for t = 1:length(time)
         %% Module 1
         % Compute discharge rates
         U_eff = synaptic_input(t);
-        
-        
+              
         CV_ISI = 10+20*exp(-(U_eff*100-U_th*100)/2.5);
         CV_ISI = CV_ISI./100;
 
