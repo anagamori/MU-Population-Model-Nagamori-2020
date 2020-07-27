@@ -426,7 +426,7 @@ output.Vce = MuscleVelocity./(L0/100);
         rho = modelParameter.pennationAngle;
         
         ddx = (F_t*cos(rho) - F_m*(cos(rho)).^2)/(M) ...
-            + (L_m_dot).^2*tan(rho).^2/(L_m);
+            + (L_m_dot*modelParameter.optimalLength/100).^2*tan(rho).^2/(L_m*modelParameter.optimalLength/100);
     end
 
     function [f_i,F_t] = contraction_dynamics_v2(A,L_s,L_m,L_m_dot,FL_vec,FV_vec,index_slow,Lmax,PT,F0)
