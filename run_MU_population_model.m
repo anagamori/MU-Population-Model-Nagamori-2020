@@ -1,7 +1,7 @@
 %==========================================================================
 % run_MU_population_model.m
 % Author: Akira Nagamori
-% Last update: 7/10/2020
+% Last update: 2/28/2021
 % Descriptions:
 %   Run simulations of a motor unit population model
 %==========================================================================
@@ -9,7 +9,7 @@
 load('modelParameter')
 
 %% Run simulation
-Fs = 10000; % sampling frequency
+Fs = 15000; % sampling frequency
 time = 0:1/Fs:5; % time vector
 
 amp = 1; % 10% of maximum synaptic input
@@ -19,6 +19,6 @@ tic
 output = MU_population_model(Fs,time,synaptic_input,modelParameter,1);
 toc
 % output = MU_population_model_no_tendon(Fs,time,input,modelParameter,1); %
-% simulation for no tendon condition in Fig.6-8
+% simulation for no tendon condition in Fig.6-8 and 10
 
 
