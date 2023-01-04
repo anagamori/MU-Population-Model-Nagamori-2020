@@ -1,15 +1,16 @@
 %==========================================================================
 % run_MU_population_model.m
-% Author: Akira Nagamori
-% Last update: 2/28/2021
+% Author: Akira Nagamori, Salk Institute for Biological Studies
+%            anagamori@salk.edu
+% Last update: 1/4/2023
 % Descriptions:
 %   Run simulations of a motor unit population model
 %==========================================================================
 
-load('modelParameter')
+load('modelParameter')                                          
 
 %% Run simulation
-Fs = 15000; % sampling frequency
+Fs = 10000; % sampling frequency
 time = 0:1/Fs:5; % time vector
 
 amp = 1; % 10% of maximum synaptic input

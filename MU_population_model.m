@@ -1,7 +1,7 @@
 %==========================================================================
 % MU_population_model.m
 % Author: Akira Nagamori
-% Last update: 2/28/21
+% Last update: 1/4/2023
 %==========================================================================
 function [output] = MU_population_model(Fs,time,synaptic_input,modelParameter,figOpt)
 %% Muscle architectural parameters
@@ -201,12 +201,21 @@ for t = 1:length(time)
     [force(:,t),F_se(t)] = contraction_dynamics_v2(A,L_se,x_m,FL,FV,modelParameter,index_slow,PTi,F0);
     % 4th order Runge-Kutta method to numerically solve differential
     % equation
-    km_1_1 = step*contraction_dynamics(A,L_se,x_m,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    km_1_2 = step*contraction_dynamics(A,L_se,x_m+km_1_1/2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    km_1_3 = step*contraction_dynamics(A,L_se,x_m+km_1_2/2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    km_1_4 = step*contraction_dynamics(A,L_se,x_m+km_1_3,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-    x_m = x_m + (km_1_1 + 2*km_1_2 + 2*km_1_3 + km_1_4)/6;    
+    f1 = contraction_dynamics(A,L_se,x_m,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+    km_1 = x_m + f1*step/2;
+    f2 = contraction_dynamics(A,L_se,km_1,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+    km_2 = x_m + f2*step/2;
+    f3 = contraction_dynamics(A,L_se,km_2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+    km_3 = x_m + f3*step;
+    f4 = contraction_dynamics(A,L_se,km_3,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+    x_m = x_m + (f1+2*f2+2*f3+f4)*step/6;
     x_m_mat(:,t) = x_m;
+%     km_1_1 = step*contraction_dynamics(A,L_se,x_m,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+%     km_1_2 = step*contraction_dynamics(A,L_se,x_m+km_1_1/2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+%     km_1_3 = step*contraction_dynamics(A,L_se,x_m+km_1_2/2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+%     km_1_4 = step*contraction_dynamics(A,L_se,x_m+km_1_3,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
+%     x_m = x_m + (km_1_1 + 2*km_1_2 + 2*km_1_3 + km_1_4)/6;    
+%     x_m_mat(:,t) = x_m;
     % normalize each variable to optimal muscle length or tendon length
     V_ce = x_m(2)/(L0/100);
     L_ce = x_m(1)/(L0/100);
@@ -425,8 +434,10 @@ output.Vce = x_m_mat(2,:)./(L0/100);
         
         %% 
         F_d = F_t - F_m;
-        A_m = [0 1; 0 x(2)*tan(modelParameter.pennationAngle).^2/(x(1))];
-        dx = A_m*x + [0;1/modelParameter.mass]*F_d;
+        dx = [x(2); ...
+            F_d/modelParameter.mass + x(2)^2*tan(modelParameter.pennationAngle).^2/(x(1))];
+%         A_m = [0 1; 0 x(2)*tan(modelParameter.pennationAngle).^2/(x(1))];
+%         dx = A_m*x + [0;1/modelParameter.mass]*F_d;
     end
 
     function [f_i,F_t] = contraction_dynamics_v2(A,L_s,x,FL_vec,FV_vec,modelParameter,index_slow,PT,F0)
