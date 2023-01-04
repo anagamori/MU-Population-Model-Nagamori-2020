@@ -210,12 +210,6 @@ for t = 1:length(time)
     f4 = contraction_dynamics(A,L_se,km_3,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
     x_m = x_m + (f1+2*f2+2*f3+f4)*step/6;
     x_m_mat(:,t) = x_m;
-%     km_1_1 = step*contraction_dynamics(A,L_se,x_m,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-%     km_1_2 = step*contraction_dynamics(A,L_se,x_m+km_1_1/2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-%     km_1_3 = step*contraction_dynamics(A,L_se,x_m+km_1_2/2,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-%     km_1_4 = step*contraction_dynamics(A,L_se,x_m+km_1_3,FL,FV,modelParameter,index_slow,Lmax,PTi,F0);
-%     x_m = x_m + (km_1_1 + 2*km_1_2 + 2*km_1_3 + km_1_4)/6;    
-%     x_m_mat(:,t) = x_m;
     % normalize each variable to optimal muscle length or tendon length
     V_ce = x_m(2)/(L0/100);
     L_ce = x_m(1)/(L0/100);
